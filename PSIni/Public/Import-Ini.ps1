@@ -83,6 +83,7 @@ function Import-Ini {
 
             if (-not (Test-Path -Path $file)) {
                 Write-Error "Could not find file '$file'"
+                continue
             }
 
             $commentCount = 0
@@ -121,17 +122,19 @@ function Import-Ini {
                         $ini[$section] = New-Object System.Collections.Specialized.OrderedDictionary([System.StringComparer]::OrdinalIgnoreCase)
                     }
                     $name, $value = $matches[1].Trim(), $matches[3].Trim()
-                    Write-Verbose "$($MyInvocation.MyCommand.Name):: Adding key $name with value: $value"
-                    if (-not $ini[$section][$name]) {
-                        $ini[$section][$name] = $value
-                    }
-                    else {
-                        if ($ini[$section][$name] -is [string]) {
-                            $oldValue = $ini[$section][$name]
-                            $ini[$section][$name] = [System.Collections.ArrayList]::new()
-                            $null = $ini[$section][$name].Add($oldValue)
+                    if (-not [string]::IsNullOrWhiteSpace($name)) {
+                        Write-Verbose "$($MyInvocation.MyCommand.Name):: Adding key $name with value: $value"
+                        if (-not $ini[$section][$name]) {
+                            $ini[$section][$name] = $value
                         }
-                        $null = $ini[$section][$name].Add($value)
+                        else {
+                            if ($ini[$section][$name] -is [string]) {
+                                $oldValue = $ini[$section][$name]
+                                $ini[$section][$name] = [System.Collections.ArrayList]::new()
+                                $null = $ini[$section][$name].Add($oldValue)
+                            }
+                            $null = $ini[$section][$name].Add($value)
+                        }
                     }
                     continue
                 }
@@ -143,9 +146,11 @@ function Import-Ini {
                         $section = $script:NoSection
                         $ini[$section] = New-Object System.Collections.Specialized.OrderedDictionary([System.StringComparer]::OrdinalIgnoreCase)
                     }
-                    $name = $_
-                    Write-Verbose "$($MyInvocation.MyCommand.Name):: Adding key $name without a value"
-                    $ini[$section][$name] = $null
+                    $name = $_.Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($name)) {
+                        Write-Verbose "$($MyInvocation.MyCommand.Name):: Adding key $name without a value"
+                        $ini[$section][$name] = $null
+                    }
                     continue
                 }
             }
