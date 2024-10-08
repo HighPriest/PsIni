@@ -130,9 +130,8 @@ function Export-Ini {
         $delimiter = if ($Format -eq "pretty") { ' = ' } else { '=' }
 
         $fileParameters = @{
-            Append   = $true
             Encoding = $Encoding
-            FilePath = $Path
+            Path = $Path
             Force    = $Force
         }
         Write-DebugMessage "Using the following paramters when writing to file:"
@@ -140,15 +139,27 @@ function Export-Ini {
     }
 
     process {
-        if ((Test-Path -Path $Path) -and (-not ($Append))) {
-            Remove-Item -Path $Path -Force:$Force
+        # Check if the file exists and handle the append operation
+        if (Test-Path -Path $Path) {
+            if (-not $Append) {
+                Remove-Item -Path $Path -Force:$Force
+            }
+            else {
+                # Read existing content if appending
+                $existingContent = Get-Content -Path $Path -ErrorAction SilentlyContinue
+            }
         }
+
+        $fileContent = @()
 
         Write-Verbose "$($MyInvocation.MyCommand.Name):: Writing to file: $Path"
         foreach ($section in $InputObject.Keys) {
             Write-Verbose "$($MyInvocation.MyCommand.Name):: Writing Section: [$section]"
 
-            if ($section -ne $script:NoSection) { Out-File -InputObject "[$section]" @fileParameters }
+            # Add section header to the content array
+            if ($section -ne $script:NoSection) {
+                $fileContent += "[$section]"
+            }
 
             $outKeysParam = @{
                 InputObject           = $InputObject[$section]
@@ -157,12 +168,22 @@ function Export-Ini {
                 CommentChar           = ";"
                 SkipTrailingEqualSign = $SkipTrailingEqualSign
             }
-            Out-Keys @outKeysParam @fileParameters
+
+            #Collect output from Out-Keys to fileContent
+            $fileContent += Out-Keys @outKeysParam
 
             # TODO: what when the Input is only a simple hash?
 
-            if ($Format -eq "pretty") { Out-File -InputObject "" @fileParameters }
+            if ($Format -eq "pretty") { $fileContent += "" }
         }
+
+        #TODO: Make sure we are honoring "Append", "Encoding"
+
+        if ($Append -and $existingContent) {
+            $fileContent = $existingContent + $fileContent
+        }
+
+        $fileContent | Set-Content @fileParameters
 
         Remove-EmptyLines @fileParameters
 
